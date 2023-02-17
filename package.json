@@ -1,0 +1,29 @@
+{
+  "name": "sfltg",
+  "version": "0.0.1",
+  "description": "",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "dev": "nodemon bot.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/entyen/sfltg.git"
+  },
+  "author": "Entyen",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/entyen/sfltg/issues"
+  },
+  "homepage": "https://github.com/entyen/sfltg#readme",
+  "dependencies": {
+    "grammy": "^1.14.1",
+    "mongoose": "^6.9.2",
+    "mongoose-sequence": "^5.3.1",
+    "web3": "^1.8.2"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.20"
+  }
+}
