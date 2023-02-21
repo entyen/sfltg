@@ -1,4 +1,4 @@
-const { Bot, session, InlineKeyboard } = require("grammy")
+const { Bot, session, InlineKeyboard, InputFile } = require("grammy")
 const mongoose = require("mongoose")
 const AutoIncrement = require("mongoose-sequence")(mongoose)
 mongoose.set("strictQuery", false)
@@ -114,10 +114,46 @@ bot.command("mine", async (ctx) => {
 })
 
 bot.command("ct", async (ctx) => {
-  ctx.reply(`https://grk.pw/connect/?id=${ctx.account.uid}&nonce=${ctx.account.nonce}&sig=sfl`)
+  ctx.reply(
+    `https://grk.pw/connect/?id=${ctx.account.uid}&nonce=${ctx.account.nonce}&sig=sfl`
+  )
 })
 
-const express = require('express')
+const Jimp = require("jimp")
+
+bot.command("ti", async (ctx) => {
+  // Generate a random image using the Jimp library
+  const width = 400
+  const height = 100
+  const bgColor = parseInt(Math.floor(Math.random() * 16777215).toString(16), 16)
+  const image = new Jimp(width, height, bgColor)
+  const font = await Jimp.loadFont(Jimp.FONT_SANS_32_BLACK)
+  const watermark = await Jimp.read("./sfl.png")
+  const text = `ID: ${ctx.account.tgid}\nName: ${ctx.from.first_name}`
+  const lines = text.split("\n")
+
+  // Print each line of text to the image
+  let y = (image.bitmap.height - lines.length * font.common.lineHeight) / 2
+  for (const line of lines) {
+    const textWidth = Jimp.measureText(font, line)
+    image.print(font, (image.bitmap.width - textWidth) / 2, y, line)
+    y += font.common.lineHeight
+  }
+
+  // Add the watermark to the bottom right corner of the image and resize it
+  watermark.resize(25, 25)
+  const watermarkX = image.bitmap.width - watermark.bitmap.width - 10
+  const watermarkY = image.bitmap.height - watermark.bitmap.height - 10
+  image.composite(watermark, watermarkX, watermarkY)
+
+  // Convert the image to a buffer and send it as a photo message
+  const buffer = await image.getBufferAsync(Jimp.MIME_PNG)
+
+  // Send the generated image as a photo message
+  await ctx.replyWithPhoto(new InputFile(buffer))
+})
+
+const express = require("express")
 const app = express()
 
 app.use(express.urlencoded({ extended: true }))
@@ -126,29 +162,31 @@ app.use(express.json())
 const PORT = process.env.PORT || 2002
 
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`)
+  console.log(`Server running on port ${PORT}`)
 })
 
-app.post('/sfl/connect:user_id', async (req, res) => {
-    const user = await accdb.findOne({ uid: req.body.userId })
-    //res.header("Access-Control-Allow-Origin", "*");
-    if (!user) {
-        res.send({ error: 'User not found' }).status(404)
-    } else {
-        if (user.nonce.toString() !== req.body.nonce) {
-            return res.send({ error: 'Nonce not match' }).status(400)
-        }
-        if (user.web3) {
-            return res.send({ error: 'User already connected' }).status(400)
-        }
-        bot.api.sendMessage(user.tgid, `Wallet connected: ${req.body.address}`)
-        user.web3 = req.body.address
-        user.nonce = Math.floor(Math.random() * 10000)
-        user.save()
-        res.send({
-            msg: 'Wallet connected. Please close this page and check for a message form the SFL INFO Bot',
-        }).status(200)
+app.post("/sfl/connect:user_id", async (req, res) => {
+  const user = await accdb.findOne({ uid: req.body.userId })
+  //res.header("Access-Control-Allow-Origin", "*");
+  if (!user) {
+    res.send({ error: "User not found" }).status(404)
+  } else {
+    if (user.nonce.toString() !== req.body.nonce) {
+      return res.send({ error: "Nonce not match" }).status(400)
     }
+    if (user.web3) {
+      return res.send({ error: "User already connected" }).status(400)
+    }
+    bot.api.sendMessage(user.tgid, `Wallet connected: ${req.body.address}`)
+    user.web3 = req.body.address
+    user.nonce = Math.floor(Math.random() * 10000)
+    user.save()
+    res
+      .send({
+        msg: "Wallet connected. Please close this page and check for a message form the SFL INFO Bot",
+      })
+      .status(200)
+  }
 })
 
 main()
