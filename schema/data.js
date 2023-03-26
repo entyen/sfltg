@@ -3,7 +3,15 @@ const mongoose = require("mongoose")
 const accountSchem = new mongoose.Schema({
   uid: { type: Number, unique: true },
   tgid: { type: String, required: true, unique: true },
-  web3: { type: String, required: false },
+  web3: [
+    {
+      _id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "web3",
+      },
+      equiped: { type: Boolean, default: false },
+    },
+  ],
   nonce: { type: Number },
   lang: { type: String, default: "en" },
   acclvl: { type: Number, default: 0 },
@@ -15,4 +23,8 @@ const accountSchem = new mongoose.Schema({
   },
 })
 
-module.exports = { accountSchem }
+const web3Schem = new mongoose.Schema({
+  walletId: { type: String, unique: true, require: true },
+})
+
+module.exports = { accountSchem, web3Schem }

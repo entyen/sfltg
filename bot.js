@@ -1,4 +1,5 @@
 const { Bot, session, InlineKeyboard, InputFile } = require("grammy")
+const { Menu } = require("@grammyjs/menu")
 const mongoose = require("mongoose")
 const AutoIncrement = require("mongoose-sequence")(mongoose)
 mongoose.set("strictQuery", false)
@@ -9,11 +10,12 @@ const config = require("./config.json")
 const bot = new Bot(config.TOKEN)
 
 //userSchem
-const { accountSchem } = require("./schema/data.js")
+const { accountSchem, web3Schem } = require("./schema/data.js")
 const accdb = mongoose.model(
   "account",
   accountSchem.plugin(AutoIncrement, { inc_field: "uid", start_seq: 1 })
 )
+const web3db = mongoose.model("web3", web3Schem)
 
 //utils
 function getLocale(ctx, string, ...vars) {
@@ -86,7 +88,24 @@ async function middleCheck(ctx, next) {
   await next()
 }
 
-bot.use(middleCheck)
+const menu = new Menu("main-menu")
+  .dynamic((ctx, range) => {
+    ctx.account.web3[0]
+      ? null
+      : range.text("Connect Web3", (ctx) => {
+          ctx.reply(
+            `https://grk.pw/connect/?id=${ctx.account.uid}&nonce=${ctx.account.nonce}&sig=sfl`
+          )
+        })
+  })
+  .row()
+  .submenu("Settings", "setting-menu")
+  .submenu("Land", "land-menu")
+const setting = new Menu("setting-menu").back("Go Back")
+const land = new Menu("land-menu").back("Go Back")
+
+menu.register([setting, land])
+bot.use(middleCheck, menu)
 
 bot.command("mine", async (ctx) => {
   const farmId = +ctx.match
@@ -113,6 +132,20 @@ bot.command("mine", async (ctx) => {
   }
 })
 
+bot.command("menu", async (ctx) => {
+  const web3acc = (await web3db.findById(ctx.account.web3[0])) || null
+  const web3parce = web3acc
+    ? web3acc.walletId.slice(1, 6) + "..." + web3acc.walletId.slice(-4)
+    : getLocale(ctx, "state")[0]
+  const menuText = getLocale(
+    ctx.account.lang,
+    "menu",
+    ctx.account.uid,
+    web3parce
+  )
+  await ctx.reply(menuText, { reply_markup: menu })
+})
+
 bot.command("ct", async (ctx) => {
   ctx.reply(
     `https://grk.pw/connect/?id=${ctx.account.uid}&nonce=${ctx.account.nonce}&sig=sfl`
@@ -125,7 +158,10 @@ bot.command("ti", async (ctx) => {
   // Generate a random image using the Jimp library
   const width = 400
   const height = 100
-  const bgColor = parseInt(Math.floor(Math.random() * 16777215).toString(16), 16)
+  const bgColor = parseInt(
+    Math.floor(Math.random() * 16777215).toString(16),
+    16
+  )
   const image = new Jimp(width, height, bgColor)
   const font = await Jimp.loadFont(Jimp.FONT_SANS_32_BLACK)
   const watermark = await Jimp.read("./sfl.png")
@@ -174,11 +210,14 @@ app.post("/sfl/connect:user_id", async (req, res) => {
     if (user.nonce.toString() !== req.body.nonce) {
       return res.send({ error: "Nonce not match" }).status(400)
     }
-    if (user.web3) {
+    if (user.web3[0]) {
       return res.send({ error: "User already connected" }).status(400)
     }
     bot.api.sendMessage(user.tgid, `Wallet connected: ${req.body.address}`)
-    user.web3 = req.body.address
+    const web3 = await web3db.create({
+      walletId: req.body.address,
+    })
+    user.web3.push(web3._id)
     user.nonce = Math.floor(Math.random() * 10000)
     user.save()
     res

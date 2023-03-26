@@ -1,4 +1,6 @@
 {
   "welcome": "Welcome %VAR%",
-  "already_logged_in": "You are already logged in."
+  "already_logged_in": "You are already logged in.",
+  "menu": "Main menu\n\n🔑 Account ID: %VAR%\n💳 WEB3: %VAR%",
+  "state": ["None", "Have"]
 }
