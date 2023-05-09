@@ -80,9 +80,7 @@ async function middleCheck(ctx, next) {
         await next()
         return
       }
-      ctx.reply(getLocale(ctx.from.language_code, "noAccount"))
-      await next()
-      return
+      return ctx.reply(getLocale(ctx.from.language_code, "noAccount"))
     }
   }
   await next()
@@ -133,7 +131,7 @@ bot.command("mine", async (ctx) => {
 })
 
 bot.command("menu", async (ctx) => {
-  const web3acc = (await web3db.findById(ctx.account.web3[0])) || null
+  const web3acc = await web3db.findById(ctx.account.web3[0])
   const web3parce = web3acc
     ? web3acc.walletId.slice(1, 6) + "..." + web3acc.walletId.slice(-4)
     : getLocale(ctx, "state")[0]
@@ -143,7 +141,7 @@ bot.command("menu", async (ctx) => {
     ctx.account.uid,
     web3parce
   )
-  await ctx.reply(menuText, { reply_markup: menu })
+  return await ctx.reply(menuText, { reply_markup: menu })
 })
 
 bot.command("ct", async (ctx) => {

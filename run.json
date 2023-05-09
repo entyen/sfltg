@@ -10,7 +10,7 @@
       "error_file": "~/.pm2/logs/error.log",
       "max_memory_restart": "1024M",
       "env": {
-        "NODE_ENV": "dev"
+        "NODE_ENV": "prod"
       }
     }
   ]
