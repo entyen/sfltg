@@ -1,7 +1,7 @@
 {
   "welcome": "Welcome %VAR%",
   "already_logged_in": "You are already logged in.",
-  "menu": "Main menu\n\n🔑 Account ID: %VAR%\n💳 WEB3: %VAR%",
+  "menu": "Main menu\n\n🔑 Account ID: %VAR%\n",
   "state": ["None", "Have"],
   "noAccount": "You dont have account use /start command for create it"
 }

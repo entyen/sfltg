@@ -1,9 +1,11 @@
 const { Bot, session, InlineKeyboard, InputFile } = require("grammy")
 const { Menu } = require("@grammyjs/menu")
+const Web3 = require("web3")
 const mongoose = require("mongoose")
 const AutoIncrement = require("mongoose-sequence")(mongoose)
 mongoose.set("strictQuery", false)
 const fetch = require("node-fetch")
+const CronJob = require("cron").CronJob
 
 const config = require("./config.json")
 
@@ -87,9 +89,15 @@ async function middleCheck(ctx, next) {
 }
 
 const menu = new Menu("main-menu")
-  .dynamic((ctx, range) => {
+  .dynamic(async (ctx, range) => {
+    const web3acc = await web3db.findById(ctx.account.web3[0])
+    const web3parce = web3acc
+      ? `💳 WEB3 ${
+          web3acc.walletId.slice(1, 6) + "..." + web3acc.walletId.slice(-4)
+        }`
+      : getLocale(ctx, "state")[0]
     ctx.account.web3[0]
-      ? null
+      ? range.text(web3parce)
       : range.text("Connect Web3", (ctx) => {
           ctx.reply(
             `https://grk.pw/connect/?id=${ctx.account.uid}&nonce=${ctx.account.nonce}&sig=sfl`
@@ -100,10 +108,110 @@ const menu = new Menu("main-menu")
   .submenu("Settings", "setting-menu")
   .submenu("Land", "land-menu")
 const setting = new Menu("setting-menu").back("Go Back")
-const land = new Menu("land-menu").back("Go Back")
 
-menu.register([setting, land])
+// WEB3
+const ether_rpc =
+  "wss://polygon-mainnet.g.alchemy.com/v2/SSrTuvsd-jiAGTl0aTvbf1e-BcRpCewC"
+const web3 = new Web3(ether_rpc)
+const sfl = require("./abi/SunflowerLand.json")
+const sflContract = new web3.eth.Contract(sfl.abi, sfl.id)
+// WEB3
+
+const regExp = /(trees|stones|dailyRewards)/i
+const land = new Menu("land-menu", { autoAnswer: false })
+  .text("Sync", async (ctx) => {
+    try {
+      const equipedWallet = ctx.account.web3.find((x) => x.equiped)
+      const wallet = await web3db.findById(equipedWallet)
+      if (!wallet)
+        return await ctx.answerCallbackQuery(
+          "This web3 account don't have any farm"
+        )
+      const farmId = await sflContract.methods
+        .tokenOfOwnerByIndex(wallet?.walletId, 0)
+        .call()
+      if (!farmId)
+        return await ctx.answerCallbackQuery(
+          "This web3 account don't have any farm"
+        )
+      const farmInfo = await fetch(
+        `https://api.sunflower-land.com/visit/${farmId}`,
+        { method: "GET" }
+      )
+      if (farmInfo.status == 200) {
+        const { state } = await farmInfo.json()
+        const Items = {
+          trees: state.trees,
+        }
+        for (const [key, value] of Object.entries(state)) {
+          if (regExp.test(key)) {
+            value.alerted = 0
+          }
+        }
+        wallet.farmInventory = state
+        await wallet.save()
+        return await ctx.answerCallbackQuery("Succesful Sync")
+      } else {
+        return await ctx.answerCallbackQuery(farmInfo.statusText)
+      }
+    } catch (e) {
+      console.log(e)
+      // return await ctx.answerCallbackQuery(e)
+    }
+  })
+  .back("Go Back", (ctx) => ctx.answerCallbackQuery())
+
+const closeButton = new Menu("closeButton", { autoAnswer: false }).text(
+  (ctx) => getLocale(ctx, "close"),
+  (ctx) => {
+    ctx.answerCallbackQuery()
+    ctx.deleteMessage()
+  }
+)
+
+menu.register([setting, land, closeButton])
 bot.use(middleCheck, menu)
+
+//cron scan
+const job = new CronJob("*/1 * * * *", null, false, "Europe/Moscow")
+job.addCallback(async () => {
+  const farm = await web3db.find()
+  const growTime = {
+    trees: 2 * 60 * 60,
+  }
+  for (const iFarm of farm) {
+    const farmOwner = await accdb.findOne({ "web3._id": { _id: iFarm._id } })
+    for (const [key, value] of Object.entries(iFarm.farmInventory)) {
+      if (value.alerted == 0) {
+        if (key == "trees") {
+          const treesArr = []
+          for (const [key1, value1] of Object.entries(value)) {
+            if (value1.wood) {
+              const treeGrow = Math.floor(
+                (value1?.wood?.choppedAt / 1000 +
+                  growTime.trees -
+                  Math.floor(Date.now() / 1000)) /
+                  60
+              )
+              treesArr.push(treeGrow <= 0)
+            }
+          }
+          if (treesArr.every((value) => value === true)) {
+            await bot.api.sendMessage(farmOwner.tgid, `All trees grow 🌲🌲🌲`, {
+              parse_mode: "HTML",
+            })
+            iFarm.set("farmInventory.trees.alerted", 1)
+          }
+        }
+      }
+    }
+    await iFarm.save()
+  }
+})
+
+// bot.on("message", async (ctx) => {
+//   console.log(ctx.message)
+// })
 
 bot.command("mine", async (ctx) => {
   const farmId = +ctx.match
@@ -135,12 +243,7 @@ bot.command("menu", async (ctx) => {
   const web3parce = web3acc
     ? web3acc.walletId.slice(1, 6) + "..." + web3acc.walletId.slice(-4)
     : getLocale(ctx, "state")[0]
-  const menuText = getLocale(
-    ctx.account.lang,
-    "menu",
-    ctx.account.uid,
-    web3parce
-  )
+  const menuText = getLocale(ctx.account.lang, "menu", ctx.account.uid)
   return await ctx.reply(menuText, { reply_markup: menu })
 })
 
@@ -212,17 +315,33 @@ app.post("/sfl/connect:user_id", async (req, res) => {
       return res.send({ error: "User already connected" }).status(400)
     }
     bot.api.sendMessage(user.tgid, `Wallet connected: ${req.body.address}`)
-    const web3 = await web3db.create({
-      walletId: req.body.address,
-    })
-    user.web3.push(web3._id)
+    let web3 = null
+    web3 = await web3db.findOne({ walletId: req.body.address })
+    if (!web3)
+      web3 = await web3db.create({
+        walletId: req.body.address,
+      })
+    user.web3.push({ _id: web3._id, equiped: true })
     user.nonce = Math.floor(Math.random() * 10000)
-    user.save()
+    await user.save()
     res
       .send({
         msg: "Wallet connected. Please close this page and check for a message form the SFL INFO Bot",
       })
       .status(200)
+  }
+})
+
+//catch uncaught Error's
+process.on("uncaughtException", function (err) {
+  console.error(err)
+})
+
+bot.catch((ctx) => {
+  if (ctx.error.error_code === 400) {
+    // console.log(ctx.error.description)
+  } else {
+    console.log(ctx.error)
   }
 })
 

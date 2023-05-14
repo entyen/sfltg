@@ -23,8 +23,12 @@ const accountSchem = new mongoose.Schema({
   },
 })
 
-const web3Schem = new mongoose.Schema({
-  walletId: { type: String, unique: true, require: true },
-})
+const web3Schem = new mongoose.Schema(
+  {
+    walletId: { type: String, unique: true, require: true },
+    farmInventory: { type: Object, default: null },
+  },
+  { timestamps: true }
+)
 
 module.exports = { accountSchem, web3Schem }
