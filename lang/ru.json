@@ -3,5 +3,6 @@
   "already_logged_in": "Вы уже вошли в систему",
   "menu": "Главное Меню\n\n🔑 ID Аккаунта: %VAR%\n",
   "state": ["Нет", "Есть"],
-  "noAccount": "У вас нет Аккаунта /start используйте для создания"
+  "noAccount": "У вас нет Аккаунта /start используйте для создания",
+  "recoverInfo": "Your %VAR% have recovered, loot them!\nWhen you loot, you will get %VAR% items from all %VAR%. \nDon't forget to synchronize the data after looting!"
 }

@@ -26,7 +26,14 @@ const accountSchem = new mongoose.Schema({
 const web3Schem = new mongoose.Schema(
   {
     walletId: { type: String, unique: true, require: true },
+    farmId: { type: Number, default: null },
     farmInventory: { type: Object, default: null },
+    alerts: {
+      trees: { type: Boolean, default: true },
+      stones: { type: Boolean, default: true },
+      iron: { type: Boolean, default: true },
+      gold: { type: Boolean, default: true },
+    },
   },
   { timestamps: true }
 )
